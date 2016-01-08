@@ -1,0 +1,254 @@
+CREATE OR REPLACE 
+PROCEDURE SP_VALIDATE_STOCK AS
+L_TXN_STATUS VARCHAR2(5);
+L_STOCK_CONFIG_ID NUMBER;
+P_IN_STATUS_TYPE VARCHAR2(20);
+P_IN_STATUS VARCHAR2(5);
+P_IN_INFORM_ID NUMBER;
+P_IN_STOCK_ID NUMBER;
+P_IN_TARO_ID NUMBER;
+P_IN_EMP_ID VARCHAR2(50);
+P_OUT_RESULT NUMBER;
+BEGIN
+
+--Stamp Status = 'VP' if no errors were found
+--Stamp Status = 'VF' if an error is found
+FOR INFORM_REC IN (
+SELECT INFORM_ID, INS_CODE, INS_TYPE_CODE, EXTRACT(YEAR FROM COVER_DATE)+543 as INFORM_YEAR
+FROM INFORM
+WHERE INFORM_ID IN (SELECT INFORM_ID FROM STATUS WHERE TXN_STATUS IN ('VP','PN'))
+)
+LOOP
+BEGIN
+
+    L_TXN_STATUS := 'RS';
+
+    IF INFORM_REC.INS_TYPE_CODE = 2 THEN
+			-- GET STOCK CONFIG
+      SELECT STOCK_CONFIG_ID INTO L_STOCK_CONFIG_ID
+      FROM STOCK_CONFIG
+      WHERE INS_CODE = INFORM_REC.INS_CODE;
+
+      BEGIN
+      SELECT STOCK_ID INTO P_IN_STOCK_ID FROM (
+        SELECT STOCK_ID
+        FROM STOCK
+        WHERE STOCK_STATUS = 'A'
+        AND STOCK_CONFIG_ID = L_STOCK_CONFIG_ID
+        AND YEAR = INFORM_REC.INFORM_YEAR
+      )
+      WHERE ROWNUM = 1;
+      EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+              L_TXN_STATUS := 'PN';
+
+              UPDATE STOCK_REMAIN SET
+              NOTIFY_FLAG = 'Y'
+              WHERE STOCK_CONFIG_ID = L_STOCK_CONFIG_ID
+              AND YEAR = INFORM_REC.INFORM_YEAR;
+
+
+      END; -- EXCEPTION
+
+      IF L_TXN_STATUS = 'RS' THEN
+        P_IN_STATUS_TYPE := 'STOCK' ;
+        P_IN_STATUS := 'U';
+        P_IN_INFORM_ID := INFORM_REC.INFORM_ID;
+        P_IN_STOCK_ID := P_IN_STOCK_ID ;
+        P_IN_TARO_ID := NULL;
+        P_IN_EMP_ID := '0' ;
+
+        SP_WRITE_STATUS(P_IN_STATUS_TYPE,P_IN_STATUS,P_IN_INFORM_ID,P_IN_STOCK_ID,P_IN_TARO_ID,P_IN_EMP_ID,P_OUT_RESULT);
+      END IF; -- IF L_TXN_STATUS = 'RS' THEN
+
+
+    END IF; -- IF INFORM_REC.INS_TYPE_CODE = 1 THEN
+
+    P_IN_STATUS_TYPE := 'TXN' ;
+    P_IN_STATUS := L_TXN_STATUS;
+    P_IN_INFORM_ID := INFORM_REC.INFORM_ID;
+    P_IN_STOCK_ID := NULL;
+    P_IN_TARO_ID := NULL;
+    P_IN_EMP_ID := '0' ;
+
+    SP_WRITE_STATUS(P_IN_STATUS_TYPE,P_IN_STATUS,P_IN_INFORM_ID,P_IN_STOCK_ID,P_IN_TARO_ID,P_IN_EMP_ID,P_OUT_RESULT);
+
+		-- IMPORT DATA TO BACK TABLE 
+    IF L_TXN_STATUS = 'RS' THEN
+
+      INSERT INTO BACK (
+        BACK_ID,
+        BACK_DATE,
+        INFORM_ID,
+        INFORM_NO,
+        CODE_CMI,
+        CODE_STICKER,
+        CUST_ID,
+        CA_NO,
+        CONTRACT_CODE,
+        CONTRACT_STATUS,
+        APPROVE_DATE,
+        MKT_NAME,
+        MKT_NUMBER,
+        MKT_TEAM_CODE,
+        CUST_NAME,
+        ID_CARD,
+        ISSUE_ID_DATE,
+        EXPIRE_ID_DATE,
+        CAR_BRAND_CODE,
+        CAR_BRAND,
+        CAR_MODEL,
+        CAR_YEAR,
+        PLAT_NO,
+        PROVINCE_ID,
+        PLAT_PROVINCE,
+        ENGINE_CC,
+        ENGINE_NO,
+        SN_BODY,
+        TAX_EXP_DATE,
+        DEALER_CODE,
+        INS_CODE,
+        INS_NAME,
+        INS_TYPE_CODE,
+        INS_TYPE,
+        INS_LEVEL_ID,
+        INS_LEVEL_DESC,
+        SUM_INS_AMT,
+        PREMIUM_AMT,
+        WHT_AMT,
+        INS_DUTY,
+        PAY_INSTALLMENT,
+        PAY1_DATE,
+        PAY2_DATE,
+        PAY3_DATE,
+        PAYMENT_TYPE,
+        PATTERN_RATE,
+        REF_CODE,
+        REF_NAME,
+        REPAIR_PLACE_CODE,
+        REPAIR_PLACE,
+        DRIVER1_NAME,
+        DRIVER1_LICENSE_NO,
+        DRIVER1_ID_CARD,
+        DRIVER1_BIRTHDATE,
+        DRIVER2_NAME,
+        DRIVER2_LICENSE_NO,
+        DRIVER2_ID_CARD,
+        DRIVER2_BIRTHDATE,
+        COVER_DATE,
+        EXPIRE_DATE,
+        ASSESS_AMT,
+        DISCOUNT_GROUP_PERCENT,
+        NCB_PERCENT,
+        NCB_AMOUNT,
+        DISCOUNT_AMT,
+        REMARK,
+        POLICY_NO,
+        PREV_INS_CODE,
+        PREV_INS_NAME,
+        RECEIVE_ADDR,
+        POST_ADDR_1,
+        POST_ADDR_2,
+        POST_CODE,
+        CHANG_DEPARTMENT_ADDR,
+        CHANG_ACT_ADDR,
+        CHANG_ACT_BILL,
+        INS_VAT
+      ) SELECT
+        SEQ_BACK.NEXTVAL,
+        CURRENT_DATE,
+        INFORM_ID,
+        INFORM_NO,
+        CODE_CMI,
+        CODE_STICKER,
+        CUST_ID,
+        CA_NO,
+        CONTRACT_CODE,
+        CONTRACT_STATUS,
+        APPROVE_DATE,
+        MKT_NAME,
+        MKT_NUMBER,
+        MKT_TEAM_CODE,
+        CUST_NAME,
+        ID_CARD,
+        ISSUE_ID_DATE,
+        EXPIRE_ID_DATE,
+        CAR_BRAND_CODE,
+        CAR_BRAND,
+        CAR_MODEL,
+        CAR_YEAR,
+        PLAT_NO,
+        PROVINCE_ID,
+        PLAT_PROVINCE,
+        ENGINE_CC,
+        ENGINE_NO,
+        SN_BODY,
+        TAX_EXP_DATE,
+        DEALER_CODE,
+        INS_CODE,
+        INS_NAME,
+        INS_TYPE_CODE,
+        INS_TYPE,
+        INS_LEVEL_ID,
+        INS_LEVEL_DESC,
+        SUM_INS_AMT,
+        PREMIUM_AMT,
+        WHT_AMT,
+        INS_DUTY,
+        PAY_INSTALLMENT,
+        PAY1_DATE,
+        PAY2_DATE,
+        PAY3_DATE,
+        PAYMENT_TYPE,
+        PATTERN_RATE,
+        REF_CODE,
+        REF_NAME,
+        REPAIR_PLACE_CODE,
+        REPAIR_PLACE,
+        DRIVER1_NAME,
+        DRIVER1_LICENSE_NO,
+        DRIVER1_ID_CARD,
+        DRIVER1_BIRTHDATE,
+        DRIVER2_NAME,
+        DRIVER2_LICENSE_NO,
+        DRIVER2_ID_CARD,
+        DRIVER2_BIRTHDATE,
+        COVER_DATE,
+        EXPIRE_DATE,
+        ASSESS_AMT,
+        DISCOUNT_GROUP_PERCENT,
+        NCB_PERCENT,
+        NCB_AMOUNT,
+        DISCOUNT_AMT,
+        REMARK,
+        POLICY_NO,
+        PREV_INS_CODE,
+        PREV_INS_NAME,
+        RECEIVE_ADDR,
+        POST_ADDR_1,
+        POST_ADDR_2,
+        POST_CODE,
+        CHANG_DEPARTMENT_ADDR,
+        CHANG_ACT_ADDR,
+        CHANG_ACT_BILL,
+        INS_VAT
+      FROM
+        INFORM
+      WHERE INFORM_ID = INFORM_REC.INFORM_ID;
+
+      UPDATE INFORM
+      SET SENT_DATE = CURRENT_DATE
+      WHERE INFORM_ID = INFORM_REC.INFORM_ID;
+
+
+    END IF;
+
+
+
+END;
+
+
+END LOOP;
+
+
+END;
